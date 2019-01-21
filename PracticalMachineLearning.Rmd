@@ -1,0 +1,91 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Jack Shih"
+date: "1/20/2019"
+output: html_document
+---
+
+## Executive Summary
+The goal of this project is to predict the manner in which we did the exercise. This is the "classe" variable in the training set. We may use any of the other variables to predict with. We will create a report describing how we built our model, how we used cross validation, what we think the expected out of sample error is, and why you made the choices you did. We will also use our prediction model to predict 20 different test cases.
+
+#### Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#### Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Setup
+Load packages, download data file, and data cleansing
+````{r setup, cache=TRUE}
+library(ggplot2)
+library(caret)
+library(rattle)
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+test <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+set.seed(28);
+
+count_NA <- sapply(test, function(y) sum((is.na(y))))
+NA_values <- count_NA[count_NA == 20]
+var_remove <- names(NA_values)
+
+training <- training[,!(names(training) %in% var_remove)]
+test <- test[,!(names(test) %in% var_remove)]
+
+var_remove2 <- c('user_name','raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window', 'X')
+
+training <- training[,!(names(training) %in% var_remove2)]
+test <- test[,!(names(test) %in% var_remove2)]
+
+my_partition <- createDataPartition(training$classe, p=0.6, list=FALSE)
+my_train <- training[my_partition,]
+my_test <- training[-my_partition,]
+
+````
+
+## Model
+#### Random Forest
+````{r rf, cache=TRUE}
+mod1 <- train(classe ~ ., method="rf", data=my_train, trControl=trainControl(method="cv", number=3))
+
+mod1$finalModel
+````
+
+#### Model Validation subset of train data
+````{r validation, cache=TRUE}
+my_predict <- predict(mod1, newdata=my_test)
+confusionMatrix(my_test$classe, my_predict)
+````
+Accuracy is 99.15%
+
+#### Decision Tree
+````{r dt, cache=TRUE}
+mod2 <- train(classe ~ ., data=my_train, method="rpart")
+print(mod2$finalModel)
+fancyRpartPlot(mod2$finalModel)
+dt_predict <- predict(mod2, newdata=my_test)
+confusionMatrix(dt_predict, my_test$classe)
+````
+Accuracy is a lot lower, at 49.57%
+
+#### Validation using test set
+````{r validation_test, cache=TRUE}
+my_test_predict <- predict(mod1, newdata=test)
+write_prediction = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+write_prediction(my_test_predict)
+
+````
+
+
